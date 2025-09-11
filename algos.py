@@ -98,25 +98,3 @@ def plotBipartiteGraph(adjacencyMatrix, donorLabels=None, agencyLabels=None, fig
     print(f"Number of Recipient Agencies: {numAgencies}")
     print(f"Total Connections: {totalConnections}")
     print(f"Connection Density: {totalConnections / (numDonors * numAgencies):.2%}")
-
-# example usage function
-def createExampleGraph():
-    """
-    Creates and displays an example bipartite graph.
-    """
-    # example 4x5 adjacency matrix
-    exampleMatrix = [
-        [1, 0, 1, 0, 1],  # donor 1 connects to agencies 1, 3, 5
-        [0, 1, 1, 0, 0],  # donor 2 connects to agencies 2, 3
-        [1, 1, 0, 1, 0],  # donor 3 connects to agencies 1, 2, 4
-        [0, 0, 1, 1, 1]   # donor 4 connects to agencies 3, 4, 5
-    ]
-    
-    # custom labels
-    donorNames = ["Restaurant A", "Grocery Store B", "Bakery C", "Farm D"]
-    agencyNames = ["Food Bank 1", "Shelter 2", "Community Center", "Senior Center", "School Program"]
-    
-    plotBipartiteGraph(exampleMatrix, donorNames, agencyNames)
-
-# uncomment the line below to run the example
-createExampleGraph()

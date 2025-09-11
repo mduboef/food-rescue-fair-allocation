@@ -32,3 +32,5 @@ def readDonorData(filename):
                     name = name.replace('*', '').strip()
                 donor = Donor(name, fbwmPartner)
                 donors.append(donor)
+
+    return donors
