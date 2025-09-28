@@ -2,9 +2,9 @@ import os
 import sys
 import csv
 
-class Package:
+class Item:
     def __init__(self, foodType, weight):
-        self.foodType = foodType        # list if applible food categoies
+        self.foodType = foodType        # list of applible food categoies
         self.weight = weight            # in pounds
         self.availbilityTime = None
         self.probability = 1.0          # probability of availability
@@ -13,7 +13,8 @@ class Donor:
     def __init__(self, name, fbwmPartner):
         self.name = name
         self.fbwmPartner = fbwmPartner      # True if FBWM donor, False otherwise
-        self.packages = []                  # list of Package objects
+        self.city = None
+        self.items = []                  # list of item objects
 
         # ? What if the food type differ between deliveries
 

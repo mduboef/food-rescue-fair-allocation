@@ -16,7 +16,7 @@ class Agency:
         self.openingTime = None
         self.closingTime = None
         self.type = None        # e.g., FP (Food Pantry), MS (Meal Service), RF (Residential Facility)
-        self.fbwmType = None    # Food Bank relationship: Y/N from equity data
+        self.fbwmPartner = None    # Food Bank relationship: Y/N from equity data
         self.deliveredPerWk = 0  # meals delivered per week
         self.servedPerWk = 0     # meals served per week
         self.equipment = None
@@ -28,6 +28,26 @@ class Agency:
         self.poundsDelivered2023 = None
         self.clientsPerWeek = None
         self.foodTypeData = {}  # dictionary to store food type percentages
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # helper function to extract agency name from full name/address string
 def extractAgencyName(fullNameAddress):
@@ -120,10 +140,9 @@ def parseHours(hoursString):
     
     return None, None
 
+#
 def readAgencyData(agencyListPath, equitySummaryPath):
-    """
-    reads agency data from both Excel files and returns list of populated Agency objects
-    """
+    
     agencies = []
     
     try:
@@ -234,7 +253,13 @@ def readAgencyData(agencyListPath, equitySummaryPath):
                 
                 if len(row) > 12 and not pd.isna(row.iloc[12]):
                     fbwmString = str(row.iloc[12]).strip().upper()
-                    agency.fbwmType = fbwmString
+                    if fbwmString == 'Y':
+                        agency.fbwmPartner = True
+                    elif fbwmString == 'N':
+                        agency.fbwmPartner = False
+                    else:
+                        agency.fbwmPartner = fbwmString
+                        print(f"fbwm type: {agency.fbwmPartner}")
             else:
                 # agency in equity summary but not in current list - disregard per instructions
                 print(f"Warning: Agency '{agencyName}' found in equity summary but not in current agency list (disregarding)")

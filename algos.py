@@ -1,100 +1,147 @@
 import numpy as np
-import matplotlib.pyplot as plt
-import networkx as nx
+import random
+from collections import defaultdict
 
-# takes an m x n adjacency matrix and visualizes it as a bipartite graph
-def plotBipartiteGraph(adjacencyMatrix, donorLabels=None, agencyLabels=None, figureSize=(12, 8)):
+from donor import Item, Donor
 
-    # adjacencyMatrix: 2D array/list representing the bipartite graph
-    # donorLabels: list of labels for food donors (optional)
-    # agencyLabels: list of labels for food recipient agencies (optional)
-    # figureSize: tuple specifying the figure size (width, height)
+
+# always gives next item to the agency with lowest current utility
+def leximinGreedy(donors, agencies, adjMatrix):
     
-    # convert to numpy array for easier handling
-    adjMatrix = np.array(adjacencyMatrix)
-    numDonors, numAgencies = adjMatrix.shape
+    # initialize tracking structures
+    agencyUtilities = [0.0] * len(agencies)  # total pounds received by each agency
+    allocation = defaultdict(list)  # allocation[agencyIdx] = list of (donorIdx, itemIdx) tuples
     
-    # create default labels if none provided
-    if donorLabels is None:
-        donorLabels = [f"Donor_{i+1}" for i in range(numDonors)]
-    if agencyLabels is None:
-        agencyLabels = [f"Agency_{i+1}" for i in range(numAgencies)]
+    # create list of all available items with their donor info
+    availableItems = []
+    for donorIdx, donor in enumerate(donors):
+        for itemIdx, item in enumerate(donor.items):
+            availableItems.append((donorIdx, itemIdx, item))
     
-    # create bipartite graph
-    bipartiteGraph = nx.Graph()
+    print(f"Starting allocation of {len(availableItems)} items to {len(agencies)} agencies")
     
-    # add donor nodes (left side)
-    donorNodes = [f"D_{i}" for i in range(numDonors)]
-    bipartiteGraph.add_nodes_from(donorNodes, bipartite=0)
+    # main allocation loop
+    while availableItems:
+        # find agency with lowest utility per person served
+        minUtilityPerPerson = float('inf')
+        targetAgencyIdx = -1
+        
+        for agencyIdx, agency in enumerate(agencies):
+            if agency.servedPerWk is None or agency.servedPerWk <= 0:
+                # skip agencies with no valid service data
+                continue
+            
+            utilityPerPerson = agencyUtilities[agencyIdx] / agency.servedPerWk
+            
+            if utilityPerPerson < minUtilityPerPerson:
+                minUtilityPerPerson = utilityPerPerson
+                targetAgencyIdx = agencyIdx
+        
+        if targetAgencyIdx == -1:
+            print("Warning: No valid agencies found with service data")
+            break
+        
+        # find best available item for target agency
+        bestItem = None
+        bestItemIdx = -1
+        bestUtility = 0
+        
+        for itemIdx, (donorIdx, itemIdxInDonor, item) in enumerate(availableItems):
+            # check if this donor can deliver to target agency
+            if adjMatrix[donorIdx][targetAgencyIdx] == 0:
+                continue
+            
+            # check FBWM partnership constraints
+            donor = donors[donorIdx]
+            agency = agencies[targetAgencyIdx]
+            
+            if donor.fbwmPartner and not agency.fbwmPartner:
+                # FBWM donor can't deliver to non-FBWM agency
+                continue
+            
+            # calculate utility (item weight)
+            itemUtility = item.weight
+            
+            if itemUtility > bestUtility:
+                bestUtility = itemUtility
+                bestItem = (donorIdx, itemIdxInDonor, item)
+                bestItemIdx = itemIdx
+        
+        if bestItem is None:
+            # no valid items for target agency, try next neediest agency
+            print(f"No available items for agency {agencies[targetAgencyIdx].name}")
+            # remove this agency temporarily or break - for now, break
+            break
+        
+        # allocate the best item to target agency
+        donorIdx, itemIdxInDonor, item = bestItem
+        allocation[targetAgencyIdx].append((donorIdx, itemIdxInDonor))
+        agencyUtilities[targetAgencyIdx] += item.weight
+        
+        # remove allocated item from available items
+        availableItems.pop(bestItemIdx)
+        
+        print(f"{donors[donorIdx].name} ----- {item.weight} lb ----> {agencies[targetAgencyIdx].name} (MDMS: {agencyUtilities[targetAgencyIdx]/agencies[targetAgencyIdx].servedPerWk:.3f})")
     
-    # add agency nodes (right side)
-    agencyNodes = [f"A_{i}" for i in range(numAgencies)]
-    bipartiteGraph.add_nodes_from(agencyNodes, bipartite=1)
+    return allocation, agencyUtilities
+
+
+# prints a summary of the allocation results
+def printAllocationSummary(allocation, agencies, donors, agencyUtilities):
+    print("\n" + "="*50)
+    print("ALLOCATION SUMMARY")
+    print("="*50)
     
-    # add edges based on adjacency matrix
-    for donorIdx in range(numDonors):
-        for agencyIdx in range(numAgencies):
-            if adjMatrix[donorIdx][agencyIdx] == 1:
-                bipartiteGraph.add_edge(f"D_{donorIdx}", f"A_{agencyIdx}")
+    totalAllocated = 0
+    allocatedAgencies = 0
     
-    # create layout for bipartite graph
-    donorPositions = {f"D_{i}": (0, i) for i in range(numDonors)}
-    agencyPositions = {f"A_{i}": (2, i) for i in range(numAgencies)}
-    nodePositions = {**donorPositions, **agencyPositions}
+    for agencyIdx, allocatedItems in allocation.items():
+        if len(allocatedItems) > 0:
+            agency = agencies[agencyIdx]
+            utility = agencyUtilities[agencyIdx]
+            utilityPerPerson = utility / agency.servedPerWk if agency.servedPerWk > 0 else 0
+            
+            print(f"{agency.name}:")
+            print(f"  Total food: {utility:.1f}lbs")
+            print(f"  People served/wk: {agency.servedPerWk}")
+            print(f"  Per person served: {utilityPerPerson:.3f}lbs")
+            print(f"  Items received: {len(allocatedItems)}")
+            totalAllocated += utility
+            allocatedAgencies += 1
     
-    # create the plot
-    plt.figure(figsize=figureSize)
+    print(f"Total agencies receiving food: {allocatedAgencies}/{len(agencies)}")
+    print(f"Total food allocated: {totalAllocated:.1f}lbs")
     
-    # draw donor nodes (left side)
-    nx.draw_networkx_nodes(bipartiteGraph, nodePositions, 
-                          nodelist=donorNodes, 
-                          node_color='lightblue', 
-                          node_size=1000, 
-                          alpha=0.8)
+    # calculate fairness metrics
+    utilitiesPerPerson = []
+    for agencyIdx in range(len(agencies)):
+        if agencies[agencyIdx].servedPerWk and agencies[agencyIdx].servedPerWk > 0:
+            utilityPerPerson = agencyUtilities[agencyIdx] / agencies[agencyIdx].servedPerWk
+            utilitiesPerPerson.append(utilityPerPerson)
     
-    # draw agency nodes (right side)
-    nx.draw_networkx_nodes(bipartiteGraph, nodePositions, 
-                          nodelist=agencyNodes, 
-                          node_color='lightcoral', 
-                          node_size=1000, 
-                          alpha=0.8)
+    if utilitiesPerPerson:
+        minUtility = min(utilitiesPerPerson)
+        maxUtility = max(utilitiesPerPerson)
+        avgUtility = sum(utilitiesPerPerson) / len(utilitiesPerPerson)
+        
+        print(f"\nFairness Metrics (lbs per person served):")
+        print(f"  Minimum: {minUtility:.3f}")
+        print(f"  Maximum: {maxUtility:.3f}")  
+        print(f"  Average: {avgUtility:.3f}")
+        print(f"  Range: {maxUtility - minUtility:.3f}")
+
+def randItemGen(donors, minItems=1, maxItems=5, minWeight=5, maxWeight=20):
     
-    # draw edges
-    nx.draw_networkx_edges(bipartiteGraph, nodePositions, 
-                          edge_color='gray', 
-                          width=2, 
-                          alpha=0.6)
+    for donor in donors:
+        numItems = random.randint(minItems, maxItems)
+        donor.items = []  # clear existing items
+        
+        for i in range(numItems):
+            weight = random.randint(minWeight, maxWeight)
+            item = Item(None, weight)  # generic food type
+            donor.items.append(item)
     
-    # create labels for display
-    displayLabels = {}
-    for i, donorNode in enumerate(donorNodes):
-        displayLabels[donorNode] = donorLabels[i]
-    for i, agencyNode in enumerate(agencyNodes):
-        displayLabels[agencyNode] = agencyLabels[i]
+    totalItems = sum(len(donor.items) for donor in donors)
+    totalWeight = sum(sum(item.weight for item in donor.items) for donor in donors)
     
-    # draw labels
-    nx.draw_networkx_labels(bipartiteGraph, nodePositions, 
-                           labels=displayLabels, 
-                           font_size=10, 
-                           font_weight='bold')
-    
-    # customize the plot
-    plt.title("Bipartite Graph: Food Donors to Recipient Agencies", 
-              fontsize=16, fontweight='bold', pad=20)
-    plt.text(0, max(numDonors, numAgencies) + 0.5, "Food Donors", 
-             fontsize=14, fontweight='bold', ha='center')
-    plt.text(2, max(numDonors, numAgencies) + 0.5, "Recipient Agencies", 
-             fontsize=14, fontweight='bold', ha='center')
-    
-    # remove axes
-    plt.axis('off')
-    plt.tight_layout()
-    plt.show()
-    
-    # print summary statistics
-    totalConnections = np.sum(adjMatrix)
-    print(f"\nBipartite Graph Summary:")
-    print(f"Number of Food Donors: {numDonors}")
-    print(f"Number of Recipient Agencies: {numAgencies}")
-    print(f"Total Connections: {totalConnections}")
-    print(f"Connection Density: {totalConnections / (numDonors * numAgencies):.2%}")
+    print(f"Randomly generated {totalItems} items totaling {totalWeight}lbs across {len(donors)} donors")
