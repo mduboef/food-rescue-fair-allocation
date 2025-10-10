@@ -26,18 +26,18 @@ def egalitarianILP(donors, agencies, adjMatrix):
 	
 	print(f"Created {len(x)} decision variables")
 	
-	# auxiliary variables: total food received by each agency (in pounds)
+	# calcuate total food received by each agency in lbs
 	foodReceived = {}
 	for agencyIdx in range(len(agencies)):
 		foodReceived[agencyIdx] = LpVariable(f"food_a{agencyIdx}", lowBound=0)
 	
-	# auxiliary variables: MDMS (Meals Delivered / Meals Served) for each agency
+	# calculate MDMS (Meals Delivered / Meals Served) for each agency
 	mdms = {}
 	for agencyIdx in range(len(agencies)):
 		mdms[agencyIdx] = LpVariable(f"mdms_a{agencyIdx}", lowBound=0)
 	
-	# main objective variable: minimum MDMS across all agencies
-	minMDMS = LpVariable("min_mdms", lowBound=0)
+	# minimum MDMS across all agencies
+	minMDMS = LpVariable("min_mdms", lowBound=0)        # our objective is to maximize this
 	
 	# objective: maximize the minimum MDMS
 	model += minMDMS, "Maximize_Minimum_MDMS"
@@ -51,7 +51,7 @@ def egalitarianILP(donors, agencies, adjMatrix):
 				f"Item_d{donorIdx}_i{itemIdx}_once"
 			)
 	
-	# constraint 2: adjacency matrix (only feasible routes)
+	# constraint 2: follow the adjacency matrix and only use feasible routes
 	constraintsAdded = 0
 	for donorIdx in range(len(donors)):
 		for itemIdx in range(len(donors[donorIdx].items)):
@@ -65,21 +65,8 @@ def egalitarianILP(donors, agencies, adjMatrix):
 	
 	print(f"Added {constraintsAdded} adjacency constraints")
 	
-	# constraint 3: FBWM partnership rules
-	fbwmConstraints = 0
-	for donorIdx, donor in enumerate(donors):
-		for itemIdx in range(len(donor.items)):
-			for agencyIdx, agency in enumerate(agencies):
-				if donor.fbwmPartner and not agency.fbwmPartner:
-					model += (
-						x[(donorIdx, agencyIdx, itemIdx)] == 0,
-						f"FBWM_rule_d{donorIdx}_a{agencyIdx}_i{itemIdx}"
-					)
-					fbwmConstraints += 1
 	
-	print(f"Added {fbwmConstraints} FBWM partnership constraints")
-	
-	# constraint 4: calculate total food received by each agency
+	# calculate total food received by each agency
 	for agencyIdx in range(len(agencies)):
 		model += (
 			foodReceived[agencyIdx] == lpSum(
@@ -90,7 +77,7 @@ def egalitarianILP(donors, agencies, adjMatrix):
 			f"FoodReceived_a{agencyIdx}"
 		)
 	
-	# constraint 5: calculate MDMS for each agency
+	# calculate MDMS for each agency
 	validAgencies = 0
 	for agencyIdx, agency in enumerate(agencies):
 		if agency.servedPerWk and agency.servedPerWk > 0:
@@ -108,7 +95,7 @@ def egalitarianILP(donors, agencies, adjMatrix):
 	
 	print(f"Optimizing for {validAgencies} agencies with valid service data")
 	
-	# constraint 6: minMDMS must be <= all agency MDMS values
+	# constraint 3: minMDMS must be <= all agency MDMS values
 	for agencyIdx in range(len(agencies)):
 		if agencies[agencyIdx].servedPerWk and agencies[agencyIdx].servedPerWk > 0:
 			model += (
@@ -116,7 +103,7 @@ def egalitarianILP(donors, agencies, adjMatrix):
 				f"MinMDMS_bound_a{agencyIdx}"
 			)
 	
-	# solve the model
+	# solve the ILP
 	print(f"\nSolving ILP optimization problem...")
 	
 	solver = PULP_CBC_CMD(msg=1, timeLimit=300)  # 5 minute time limit
