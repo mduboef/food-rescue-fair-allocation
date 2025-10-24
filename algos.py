@@ -13,7 +13,7 @@ FOOD_TYPES = ["dairy", "meat", "produce", "grain", "processed", "non-perishables
 def egalitarianILP(donors, agencies, adjMatrix, drivers=None):
 	
 	print(f"\n{'='*60}")
-	print("STARTING NEW ILP SOLVER - EGALITARIAN WITH DRIVERS & FOOD TYPES")
+	print("STARTING NEW ILP SOLVER - EGALITARIAN + EGALITARIAN ACROSS FOOD TYPES")
 	print(f"{'='*60}")
 	
 	# use default drivers if none provided
@@ -27,11 +27,11 @@ def egalitarianILP(donors, agencies, adjMatrix, drivers=None):
 	# create qgf matrix: quantity of food type f in item g
 	qgfMatrix = createFoodTypeMatrix(donors)
 	
-	# create feasibility matrix for drivers
+	# create 3D feasibility matrix showing which drivers can make which trips
 	feasibilityMatrix = createDriverFeasibilityMatrix(donors, agencies, drivers, adjMatrix)
 	
 	# time step limit
-	timeSteps = [0,1,2,3,4,5,6,7,8,9]
+	timeSteps = [0,1,2,3,4]
 	
 	# create the optimization model
 	model = LpProblem("Food_Allocation_New_Egalitarian", LpMaximize)
@@ -148,6 +148,7 @@ def egalitarianILP(donors, agencies, adjMatrix, drivers=None):
 		for donorIdx, donor in enumerate(donors):
 			for itemIdx in range(len(donor.items)):
 				# item can only be assigned if there's a trip from donor to agency
+				# ? Does the time step matter here?
 				model += (
 					x[(agencyIdx, donorIdx, itemIdx)] <= lpSum(
 						y[(t, agencyIdx, donorIdx, driverIdx)]
@@ -251,12 +252,10 @@ def createFoodTypeMatrix(donors):
 	
 	return qgf
 
-# creates feasibility matrix for driver-donor-agency combinations
+# creates for driver-donor-agency combinations
 def createDriverFeasibilityMatrix(donors, agencies, drivers, adjMatrix):
-	"""
-	Creates 3D feasibility matrix: feasible[agency][donor][driver]
-	True if driver can make trip from donor to agency
-	"""
+	# 3D feasibility matrix: feasible[agency][donor][driver]
+	# True if driver can make trip from donor to agency
 	feasible = np.zeros((len(agencies), len(donors), len(drivers)), dtype=bool)
 	
 	for agencyIdx in range(len(agencies)):
@@ -265,7 +264,7 @@ def createDriverFeasibilityMatrix(donors, agencies, drivers, adjMatrix):
 				# check if donor-agency connection exists in adjacency matrix
 				if adjMatrix[donorIdx][agencyIdx] == 1:
 					# for now, assume all drivers can make all feasible trips
-					# in a real implementation, this would check driver location, capacity, etc.
+					# TODO check driver location, capacity, etc.
 					feasible[agencyIdx][donorIdx][driverIdx] = True
 	
 	totalFeasible = np.sum(feasible)
@@ -388,6 +387,7 @@ def printAllocationSummary(allocation, agencies, donors, agencyUtilities):
 	
 	totalAllocated = 0
 	allocatedAgencies = 0
+	totalTrips = 0
 	
 	for agencyIdx, allocatedItems in allocation.items():
 		if len(allocatedItems) > 0:
@@ -400,11 +400,37 @@ def printAllocationSummary(allocation, agencies, donors, agencyUtilities):
 			print(f"  People served/wk: {agency.servedPerWk}")
 			print(f"  Per person served: {utilityPerPerson:.3f}lbs")
 			print(f"  Items received: {len(allocatedItems)}")
+			
+			# group items by donor to show trip details
+			donorToWeight = {}
+			donorToItemCount = {}
+			
+			for donorIdx, itemIdx in allocatedItems:
+				item = donors[donorIdx].items[itemIdx]
+				donorName = donors[donorIdx].name
+				
+				if donorName not in donorToWeight:
+					donorToWeight[donorName] = 0
+					donorToItemCount[donorName] = 0
+				
+				donorToWeight[donorName] += item.weight
+				donorToItemCount[donorName] += 1
+			
+			# display trip details
+			print(f"  Trips received from {len(donorToWeight)} donors:")
+			for donorName in sorted(donorToWeight.keys()):
+				totalWeight = donorToWeight[donorName]
+				itemCount = donorToItemCount[donorName]
+				print(f"    • {donorName}: {totalWeight:.1f}lbs ({itemCount} items)")
+				totalTrips += 1
+			
+			print()  # blank line between agencies
 			totalAllocated += utility
 			allocatedAgencies += 1
 	
 	print(f"Total agencies receiving food: {allocatedAgencies}/{len(agencies)}")
 	print(f"Total food allocated: {totalAllocated:.1f}lbs")
+	print(f"Total unique donor-to-agency trips: {totalTrips}")
 	
 	# calculate fairness metrics
 	utilitiesPerPerson = []

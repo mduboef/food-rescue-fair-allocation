@@ -63,8 +63,8 @@ def main():
 	print("\n" + "="*60)
 	print("ALLOCATION ALGORITHM OPTIONS")
 	print("="*60)
-	print("1. Leximin Greedy (Legacy)")
-	print("2. ILP Egalitarian (New Formulation)")
+	print("1. Leximin Greedy")
+	print("2. ILP Egalitarian")
 	print("3. Compare Both")
 	print("="*60)
 	
@@ -99,13 +99,13 @@ def main():
 		greedyAllocation, greedyUtilities = leximinGreedy(donors, agencies, adjMatrix)
 		
 		print("\n" + "="*60)
-		print("RUNNING NEW ILP EGALITARIAN ALGORITHM")
+		print("RUNNING ILP EGALITARIAN ALGORITHM")
 		print("="*60)
 		ilpAllocation, ilpUtilities = egalitarianILP(donors, agencies, adjMatrix, drivers)
 		
 		# compare results
 		print("\n" + "="*80)
-		print("COMPARISON: GREEDY vs NEW ILP")
+		print("COMPARISON: GREEDY vs ILP")
 		print("="*80)
 		
 		# calculate min MDMS for each approach
@@ -127,7 +127,7 @@ def main():
 			greedyMax = max(greedyMDMSValues)
 			ilpMax = max(ilpMDMSValues)
 			
-			print(f"\n{'Metric':<30} {'Greedy':<15} {'New ILP':<15} {'Improvement':<15}")
+			print(f"\n{'Metric':<30} {'Greedy':<15} {'ILP':<15} {'Improvement':<15}")
 			print("-" * 80)
 			print(f"{'Min MDMS':<30} {greedyMin:<15.3f} {ilpMin:<15.3f} {(ilpMin/greedyMin - 1)*100:>13.1f}%")
 			print(f"{'Avg MDMS':<30} {greedyAvg:<15.3f} {ilpAvg:<15.3f} {(ilpAvg/greedyAvg - 1)*100:>13.1f}%")
