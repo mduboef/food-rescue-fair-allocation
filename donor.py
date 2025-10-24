@@ -2,10 +2,14 @@ import csv
 
 class Item:
 	def __init__(self, foodType, weight):
-		self.foodType = foodType        # list of applicable food categories
+		self.foodType = foodType        # list of applicable food categories (legacy)
 		self.weight = weight            # in pounds
 		self.availabilityTime = None
 		self.probability = 1.0          # probability of availability
+		
+		# new food type quantities for the updated formulation
+		# foodTypeQuantities[foodType] = pounds of that food type in this item
+		self.foodTypeQuantities = {}    # dict mapping food type to quantity in pounds
 
 
 class Donor:

@@ -7,7 +7,7 @@ from colorama import Fore
 
 from donor import Item, Donor, readDonorData
 from agency import Agency, Preference, readAgencyData
-from driver import Driver
+from driver import Driver, generateDrivers
 from visuals import plotBipartiteGraph, plotAllocationGraph, plotComparisonGraphs
 from algos import leximinGreedy, egalitarianILP, printAllocationSummary, randItemGen
 
@@ -17,6 +17,9 @@ def main():
 	agencies = readAgencyData("resources/agencyData.csv")
 	# read in donor data
 	donors = readDonorData("resources/donorData.csv")
+	
+	# generate drivers for the new formulation
+	drivers = generateDrivers(5)  # create 5 drivers with random locations
 
 	# populate adjacency matrix connecting agencies to donors if feasible
 	adjMatrix = np.zeros((len(donors), len(agencies)))
@@ -31,7 +34,6 @@ def main():
 	for i in range(len(agencies)):
 		agencyLabels.append(agencies[i].name)
 
-
 	# populate adjacency matrix with edges
 	for i in range(len(donors)):
 		for j in range(len(agencies)):
@@ -40,10 +42,10 @@ def main():
 			if donors[i].fbwmPartner == True and agencies[j].fbwmPartner == "NFB":
 				continue
 
-            # TODO populate the adjacency matrix based the lat/long of donors and agencies
-            # ! Still need lat/long data for donors
+			# TODO populate the adjacency matrix based the lat/long of donors and agencies
+			# ! Still need lat/long data for donors
 
-            # TEMPORARY randomly generate edges
+			# TEMPORARY randomly generate edges
 			elif random.random() < 0.07:  # 7% chance of a connection
 				adjMatrix[i][j] = 1
 
@@ -54,15 +56,15 @@ def main():
 	# # visualize the network
 	# plotBipartiteGraph(adjMatrix, donorLabels, agencyLabels)
 
-	# randomly assign packages to donors
+	# randomly assign packages to donors with new food type support
 	randItemGen(donors, minItems=3, maxItems=25, minWeight=10, maxWeight=50)
 
 	# choose which algorithm to run
 	print("\n" + "="*60)
 	print("ALLOCATION ALGORITHM OPTIONS")
 	print("="*60)
-	print("1. Leximin Greedy")
-	print("2. ILP Egalitarian")
+	print("1. Leximin Greedy (Legacy)")
+	print("2. ILP Egalitarian (New Formulation)")
 	print("3. Compare Both")
 	print("="*60)
 	
@@ -81,8 +83,8 @@ def main():
 		plotComparisonGraphs(adjMatrix, allocation, donors, agencies, donorLabels, agencyLabels)
 
 	elif choice == "2":
-		# run ILP egalitarian
-		allocation, agencyUtilities = egalitarianILP(donors, agencies, adjMatrix)
+		# run new ILP egalitarian with drivers and food types
+		allocation, agencyUtilities = egalitarianILP(donors, agencies, adjMatrix, drivers)
 		printAllocationSummary(allocation, agencies, donors, agencyUtilities)
 		
 		# visualize
@@ -97,13 +99,13 @@ def main():
 		greedyAllocation, greedyUtilities = leximinGreedy(donors, agencies, adjMatrix)
 		
 		print("\n" + "="*60)
-		print("RUNNING ILP EGALITARIAN ALGORITHM")
+		print("RUNNING NEW ILP EGALITARIAN ALGORITHM")
 		print("="*60)
-		ilpAllocation, ilpUtilities = egalitarianILP(donors, agencies, adjMatrix)
+		ilpAllocation, ilpUtilities = egalitarianILP(donors, agencies, adjMatrix, drivers)
 		
 		# compare results
 		print("\n" + "="*80)
-		print("COMPARISON: GREEDY vs ILP")
+		print("COMPARISON: GREEDY vs NEW ILP")
 		print("="*80)
 		
 		# calculate min MDMS for each approach
@@ -125,7 +127,7 @@ def main():
 			greedyMax = max(greedyMDMSValues)
 			ilpMax = max(ilpMDMSValues)
 			
-			print(f"\n{'Metric':<30} {'Greedy':<15} {'ILP':<15} {'Improvement':<15}")
+			print(f"\n{'Metric':<30} {'Greedy':<15} {'New ILP':<15} {'Improvement':<15}")
 			print("-" * 80)
 			print(f"{'Min MDMS':<30} {greedyMin:<15.3f} {ilpMin:<15.3f} {(ilpMin/greedyMin - 1)*100:>13.1f}%")
 			print(f"{'Avg MDMS':<30} {greedyAvg:<15.3f} {ilpAvg:<15.3f} {(ilpAvg/greedyAvg - 1)*100:>13.1f}%")
@@ -142,7 +144,7 @@ def main():
 			print(f"{'Agencies served':<30} {greedyServed:<15} {ilpServed:<15} {ilpServed - greedyServed:>14}")
 		
 		# visualize both
-		print("\nDisplaying ILP allocation results...")
+		print("\nDisplaying New ILP allocation results...")
 		plotComparisonGraphs(adjMatrix, ilpAllocation, donors, agencies, donorLabels, agencyLabels)
 
 	else:
@@ -151,4 +153,5 @@ def main():
 
 	return 0
 
-main()
+if __name__ == "__main__":
+	main()
