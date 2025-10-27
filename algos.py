@@ -31,7 +31,7 @@ def egalitarianILP(donors, agencies, adjMatrix, drivers=None):
 	feasibilityMatrix = createDriverFeasibilityMatrix(donors, agencies, drivers, adjMatrix)
 	
 	# time step limit
-	timeSteps = [0,1,2,3,4]
+	timeSteps = [0,1,2,3,4,6,7,8,9]
 	
 	# create the optimization model
 	model = LpProblem("Food_Allocation_New_Egalitarian", LpMaximize)
@@ -70,10 +70,10 @@ def egalitarianILP(donors, agencies, adjMatrix, drivers=None):
 	
 	model += r + lpSum(alphaWeights[foodType] * rf[foodType] for foodType in FOOD_TYPES), "Maximize_Min_Weighted_Utility"
 	
-	# constraint 1: minimum weighted utility constraint
+	# constraint 1: minimum food per person served constraint
 	for agencyIdx in range(len(agencies)):
-		totalWeightedUtility = lpSum(
-			agencyWeights[agencyIdx] * qgfMatrix[(donorIdx, itemIdx, foodType)] * 
+		totalFoodReceived = lpSum(
+			qgfMatrix[(donorIdx, itemIdx, foodType)] * 
 			x[(agencyIdx, donorIdx, itemIdx)]
 			for donorIdx, donor in enumerate(donors)
 			for itemIdx in range(len(donor.items))
@@ -81,23 +81,23 @@ def egalitarianILP(donors, agencies, adjMatrix, drivers=None):
 		)
 		
 		model += (
-			totalWeightedUtility >= r,
-			f"MinWeightedUtility_a{agencyIdx}"
+			totalFoodReceived >= r * agencyWeights[agencyIdx],
+			f"MinFoodPerPerson_a{agencyIdx}"
 		)
 	
-	# constraint 2: minimum weighted utility per food type
+	# constraint 2: minimum food per person served per food type
 	for agencyIdx in range(len(agencies)):
 		for foodType in FOOD_TYPES:
-			foodTypeWeightedUtility = lpSum(
-				agencyWeights[agencyIdx] * qgfMatrix[(donorIdx, itemIdx, foodType)] * 
+			foodTypeReceived = lpSum(
+				qgfMatrix[(donorIdx, itemIdx, foodType)] * 
 				x[(agencyIdx, donorIdx, itemIdx)]
 				for donorIdx, donor in enumerate(donors)
 				for itemIdx in range(len(donor.items))
 			)
 			
 			model += (
-				foodTypeWeightedUtility >= rf[foodType],
-				f"MinWeightedUtility_a{agencyIdx}_f{foodType}"
+				foodTypeReceived >= rf[foodType] * agencyWeights[agencyIdx],
+				f"MinFoodPerPersonPerType_a{agencyIdx}_f{foodType}"
 			)
 	
 	# constraint 3: each item allocated at most once
@@ -168,7 +168,7 @@ def egalitarianILP(donors, agencies, adjMatrix, drivers=None):
 	print(f"ILP Solution Status: {LpStatus[model.status]}")
 	
 	if model.status == LpStatusOptimal:
-		print(f"Optimal Min Weighted Utility: {r.varValue:.3f}")
+		print(f"Optimal Equalitarian Welfare: {r.varValue:.3f}")
 		for foodType in FOOD_TYPES:
 			print(f"  Min {foodType}: {rf[foodType].varValue:.3f}")
 	elif model.status == LpStatusNotSolved:
@@ -301,83 +301,6 @@ def randItemGen(donors, minItems=1, maxItems=5, minWeight=5, maxWeight=20):
 	print(f"Randomly generated {totalItems} items totaling {totalWeight}lbs across {len(donors)} donors")
 	print(f"Food types assigned: {FOOD_TYPES}")
 
-# always gives next item to the agency with lowest current utility (legacy greedy method)
-def leximinGreedy(donors, agencies, adjMatrix):
-	
-	# initialize tracking structures
-	agencyUtilities = [0.0] * len(agencies)  # total pounds received by each agency
-	allocation = defaultdict(list)  # allocation[agencyIdx] = list of (donorIdx, itemIdx) tuples
-	
-	# create list of all available items with their donor info
-	availableItems = []
-	for donorIdx, donor in enumerate(donors):
-		for itemIdx, item in enumerate(donor.items):
-			availableItems.append((donorIdx, itemIdx, item))
-	
-	print(f"Starting allocation of {len(availableItems)} items to {len(agencies)} agencies")
-	
-	# main allocation loop
-	while availableItems:
-		# find agency with lowest utility per person served
-		minUtilityPerPerson = float('inf')
-		targetAgencyIdx = -1
-		
-		for agencyIdx, agency in enumerate(agencies):
-			if agency.servedPerWk is None or agency.servedPerWk <= 0:
-				# skip agencies with no valid service data
-				continue
-			
-			utilityPerPerson = agencyUtilities[agencyIdx] / agency.servedPerWk
-			
-			if utilityPerPerson < minUtilityPerPerson:
-				minUtilityPerPerson = utilityPerPerson
-				targetAgencyIdx = agencyIdx
-		
-		if targetAgencyIdx == -1:
-			print("Warning: No valid agencies found with service data")
-			break
-		
-		# find best available item for target agency
-		bestItem = None
-		bestItemIdx = -1
-		bestUtility = 0
-		
-		for itemIdx, (donorIdx, itemIdxInDonor, item) in enumerate(availableItems):
-			# check if this donor can deliver to target agency
-			if adjMatrix[donorIdx][targetAgencyIdx] == 0:
-				continue
-			
-			# check FBWM partnership constraints
-			donor = donors[donorIdx]
-			agency = agencies[targetAgencyIdx]
-			
-			if donor.fbwmPartner and not agency.fbwmPartner:
-				# FBWM donor can't deliver to non-FBWM agency
-				continue
-			
-			# calculate utility (item weight)
-			itemUtility = item.weight
-			
-			if itemUtility > bestUtility:
-				bestUtility = itemUtility
-				bestItem = (donorIdx, itemIdxInDonor, item)
-				bestItemIdx = itemIdx
-		
-		if bestItem is None:
-			# no valid items for target agency, try next neediest agency
-			print(f"No available items for agency {agencies[targetAgencyIdx].name}")
-			# remove this agency temporarily or break - for now, break
-			break
-		
-		# allocate the best item to target agency
-		donorIdx, itemIdxInDonor, item = bestItem
-		allocation[targetAgencyIdx].append((donorIdx, itemIdxInDonor))
-		agencyUtilities[targetAgencyIdx] += item.weight
-		
-		# remove allocated item from available items
-		availableItems.pop(bestItemIdx)
-	
-	return allocation, agencyUtilities
 
 # prints a summary of the allocation results
 def printAllocationSummary(allocation, agencies, donors, agencyUtilities):
