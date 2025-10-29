@@ -4,7 +4,7 @@ from collections import defaultdict
 import pulp as plp
 import statistics
 
-from donor import Item, Donor
+from item import Item
 
 # define the seven food types as specified
 FOOD_TYPES = [
@@ -329,13 +329,17 @@ def randItemGen(donors, minItems=1, maxItems=5, minWeight=5, maxWeight=20, seed=
     if seed is not None:
         random.seed(seed)
 
+    totalItems = 0
+    totalWeight = 0
+
     for donor in donors:
         numItems = random.randint(minItems, maxItems)
-        donor.items = []  # clear existing items
+        totalItems += numItems
 
         for i in range(numItems):
             weight = random.randint(minWeight, maxWeight)
-            item = Item(None, weight)  # generic food type
+            totalWeight += weight
+            item = Item(donor, weight, foodType=None)  # generic food type
 
             # randomly assign 1-3 food types
             numFoodTypes = random.randint(1, 3)
@@ -346,11 +350,6 @@ def randItemGen(donors, minItems=1, maxItems=5, minWeight=5, maxWeight=20, seed=
 
             for foodType in selectedFoodTypes:
                 item.foodTypeQuantities[foodType] = weightPerType
-
-            donor.items.append(item)
-
-    totalItems = sum(len(donor.items) for donor in donors)
-    totalWeight = sum(sum(item.weight for item in donor.items) for donor in donors)
 
     print(
         f"Randomly generated {totalItems} items totaling {totalWeight}lbs across {len(donors)} donors"
