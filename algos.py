@@ -1,7 +1,7 @@
 import numpy as np
 import random
 from collections import defaultdict
-from pulp import *
+import pulp as plp
 import statistics
 
 from donor import Item, Donor
@@ -46,7 +46,7 @@ def egalitarianILP(donors, agencies, adjMatrix, drivers=None):
     timeSteps = [0, 1, 2, 3, 4, 6, 7, 8, 9]
 
     # create the optimization model
-    model = LpProblem("Food_Allocation_New_Egalitarian", LpMaximize)
+    model = plp.LpProblem("Food_Allocation_New_Egalitarian", plp.LpMaximize)
 
     # decision variables
     # xi_g: binary indicating if item g is assigned to agency i
@@ -55,7 +55,9 @@ def egalitarianILP(donors, agencies, adjMatrix, drivers=None):
         for donorIdx, donor in enumerate(donors):
             for itemIdx in range(len(donor.items)):
                 varName = f"x_a{agencyIdx}_d{donorIdx}_i{itemIdx}"
-                x[(agencyIdx, donorIdx, itemIdx)] = LpVariable(varName, cat="Binary")
+                x[(agencyIdx, donorIdx, itemIdx)] = plp.LpVariable(
+                    varName, cat="Binary"
+                )
 
     # yt_i_d_k: binary indicating trip from donor d to agency i by driver k at time t
     y = {}
@@ -64,17 +66,17 @@ def egalitarianILP(donors, agencies, adjMatrix, drivers=None):
             for donorIdx in range(len(donors)):
                 for driverIdx in range(len(drivers)):
                     varName = f"y_t{t}_a{agencyIdx}_d{donorIdx}_k{driverIdx}"
-                    y[(t, agencyIdx, donorIdx, driverIdx)] = LpVariable(
+                    y[(t, agencyIdx, donorIdx, driverIdx)] = plp.LpVariable(
                         varName, cat="Binary"
                     )
 
     # r: minimum weighted utility across all agencies
-    r = LpVariable("r", lowBound=0)
+    r = plp.LpVariable("r", lowBound=0)
 
     # rf: minimum weighted utility per food type across all agencies
     rf = {}
     for foodType in FOOD_TYPES:
-        rf[foodType] = LpVariable(f"r_{foodType}", lowBound=0)
+        rf[foodType] = plp.LpVariable(f"r_{foodType}", lowBound=0)
 
     print(f"Created {len(x)} allocation variables and {len(y)} trip variables")
 
@@ -83,13 +85,13 @@ def egalitarianILP(donors, agencies, adjMatrix, drivers=None):
     alphaWeights = {foodType: 1.0 for foodType in FOOD_TYPES}
 
     model += (
-        r + lpSum(alphaWeights[foodType] * rf[foodType] for foodType in FOOD_TYPES),
+        r + plp.lpSum(alphaWeights[foodType] * rf[foodType] for foodType in FOOD_TYPES),
         "Maximize_Min_Weighted_Utility",
     )
 
     # constraint 1: minimum food per person served constraint
     for agencyIdx in range(len(agencies)):
-        totalFoodReceived = lpSum(
+        totalFoodReceived = plp.lpSum(
             qgfMatrix[(donorIdx, itemIdx, foodType)] * x[(agencyIdx, donorIdx, itemIdx)]
             for donorIdx, donor in enumerate(donors)
             for itemIdx in range(len(donor.items))
@@ -104,7 +106,7 @@ def egalitarianILP(donors, agencies, adjMatrix, drivers=None):
     # constraint 2: minimum food per person served per food type
     for agencyIdx in range(len(agencies)):
         for foodType in FOOD_TYPES:
-            foodTypeReceived = lpSum(
+            foodTypeReceived = plp.lpSum(
                 qgfMatrix[(donorIdx, itemIdx, foodType)]
                 * x[(agencyIdx, donorIdx, itemIdx)]
                 for donorIdx, donor in enumerate(donors)
@@ -120,7 +122,7 @@ def egalitarianILP(donors, agencies, adjMatrix, drivers=None):
     for donorIdx, donor in enumerate(donors):
         for itemIdx in range(len(donor.items)):
             model += (
-                lpSum(
+                plp.lpSum(
                     x[(agencyIdx, donorIdx, itemIdx)]
                     for agencyIdx in range(len(agencies))
                 )
@@ -132,7 +134,7 @@ def egalitarianILP(donors, agencies, adjMatrix, drivers=None):
     for t in timeSteps:
         for driverIdx in range(len(drivers)):
             model += (
-                lpSum(
+                plp.lpSum(
                     y[(t, agencyIdx, donorIdx, driverIdx)]
                     for agencyIdx in range(len(agencies))
                     for donorIdx in range(len(donors))
@@ -146,7 +148,7 @@ def egalitarianILP(donors, agencies, adjMatrix, drivers=None):
         for agencyIdx in range(len(agencies)):
             for donorIdx in range(len(donors)):
                 model += (
-                    lpSum(
+                    plp.lpSum(
                         y[(t, agencyIdx, donorIdx, driverIdx)]
                         for driverIdx in range(len(drivers))
                     )
@@ -177,7 +179,7 @@ def egalitarianILP(donors, agencies, adjMatrix, drivers=None):
                 # ? Does the time step matter here?
                 model += (
                     x[(agencyIdx, donorIdx, itemIdx)]
-                    <= lpSum(
+                    <= plp.lpSum(
                         y[(t, agencyIdx, donorIdx, driverIdx)]
                         for t in timeSteps
                         for driverIdx in range(len(drivers))
@@ -188,20 +190,20 @@ def egalitarianILP(donors, agencies, adjMatrix, drivers=None):
     # solve the ILP
     print(f"\nSolving new ILP optimization problem...")
 
-    solver = PULP_CBC_CMD(msg=1, timeLimit=300)  # 5 minute time limit
+    solver = plp.PULP_CBC_CMD(msg=1, timeLimit=300)  # 5 minute time limit
     model.solve(solver)
 
     print(f"\n{'='*60}")
-    print(f"ILP Solution Status: {LpStatus[model.status]}")
+    print(f"ILP Solution Status: {plp.LpStatus[model.status]}")
 
-    if model.status == LpStatusOptimal:
+    if model.status == plp.LpStatusOptimal:
         print(f"Optimal Equalitarian Welfare: {r.varValue:.3f}")
         for foodType in FOOD_TYPES:
             print(f"  Min {foodType}: {rf[foodType].varValue:.3f}")
-    elif model.status == LpStatusNotSolved:
+    elif model.status == plp.LpStatusNotSolved:
         print("WARNING: Problem not solved - check constraints")
         return defaultdict(list), [0.0] * len(agencies)
-    elif model.status == LpStatusInfeasible:
+    elif model.status == plp.LpStatusInfeasible:
         print("WARNING: Problem is infeasible - check constraints")
         return defaultdict(list), [0.0] * len(agencies)
 
