@@ -19,7 +19,7 @@ FOOD_TYPES = [
 
 
 # ILP-based allocation with new egalitarian formulation including drivers and food types
-def egalitarianILP(donors, agencies, adjMatrix, drivers=None):
+def egalitarianILP(donors, agencies, adjMatrix, drivers=None, use_gurobi=False):
 
     print(f"\n{'='*60}")
     print("STARTING NEW ILP SOLVER - EGALITARIAN + EGALITARIAN ACROSS FOOD TYPES")
@@ -55,7 +55,9 @@ def egalitarianILP(donors, agencies, adjMatrix, drivers=None):
         for donorIdx, donor in enumerate(donors):
             for itemIdx in range(len(donor.items)):
                 varName = f"x_a{agencyIdx}_d{donorIdx}_i{itemIdx}"
-                x[(agencyIdx, donorIdx, itemIdx)] = plp.LpVariable(varName, cat="Binary")
+                x[(agencyIdx, donorIdx, itemIdx)] = plp.LpVariable(
+                    varName, cat="Binary"
+                )
 
     # yt_i_d_k: binary indicating trip from donor d to agency i by driver k at time t
     y = {}
@@ -188,7 +190,11 @@ def egalitarianILP(donors, agencies, adjMatrix, drivers=None):
     # solve the ILP
     print(f"\nSolving new ILP optimization problem...")
 
-    solver = plp.PULP_CBC_CMD(msg=1, timeLimit=300)  # 5 minute time limit
+    if use_gurobi:
+        solver = plp.GUROBI_CMD(msg=1, timeLimit=300)
+    else:
+        solver = plp.PULP_CBC_CMD(msg=1, timeLimit=300)  # 5 minute time limit
+
     model.solve(solver)
 
     print(f"\n{'='*60}")
@@ -318,7 +324,10 @@ def createDriverFeasibilityMatrix(donors, agencies, drivers, adjMatrix):
 
 
 # randomly assigns food types to items (1-3 types per item)
-def randItemGen(donors, minItems=1, maxItems=5, minWeight=5, maxWeight=20):
+def randItemGen(donors, minItems=1, maxItems=5, minWeight=5, maxWeight=20, seed=None):
+
+    if seed is not None:
+        random.seed(seed)
 
     for donor in donors:
         numItems = random.randint(minItems, maxItems)

@@ -11,13 +11,17 @@ from driver import Driver, generateDrivers
 from visuals import plotBipartiteGraph, plotAllocationGraph, plotComparisonGraphs
 from algos import egalitarianILP, printAllocationSummary, randItemGen
 
+seed = 3
+
+random.seed(seed)
+
 
 def main():
 
     # read in agency data
-    agencies = readAgencyData("resources/agencyData.csv")
+    agencies = readAgencyData("resources/agencyData_small.csv")
     # read in donor data
-    donors = readDonorData("resources/donorData.csv")
+    donors = readDonorData("resources/donorData_small.csv")
 
     # generate drivers for the new formulation
     drivers = generateDrivers(5)  # create 5 drivers with random locations
@@ -57,10 +61,12 @@ def main():
     # plotBipartiteGraph(adjMatrix, donorLabels, agencyLabels)
 
     # randomly assign packages to donors with new food type support
-    randItemGen(donors, minItems=3, maxItems=25, minWeight=10, maxWeight=50)
+    randItemGen(donors, minItems=3, maxItems=25, minWeight=10, maxWeight=50, seed=seed)
 
     # run new ILP egalitarian with drivers and food types
-    allocation, agencyUtilities = egalitarianILP(donors, agencies, adjMatrix, drivers)
+    allocation, agencyUtilities = egalitarianILP(
+        donors, agencies, adjMatrix, drivers, use_gurobi=False
+    )
     printAllocationSummary(allocation, agencies, donors, agencyUtilities)
 
     # visualize
