@@ -11,65 +11,66 @@ from driver import Driver, generateDrivers
 from visuals import plotBipartiteGraph, plotAllocationGraph, plotComparisonGraphs
 from algos import egalitarianILP, printAllocationSummary, randItemGen
 
+
 def main():
 
-	# read in agency data
-	agencies = readAgencyData("resources/agencyData.csv")
-	# read in donor data
-	donors = readDonorData("resources/donorData.csv")
-	
-	# generate drivers for the new formulation
-	drivers = generateDrivers(5)  # create 5 drivers with random locations
+    # read in agency data
+    agencies = readAgencyData("resources/agencyData.csv")
+    # read in donor data
+    donors = readDonorData("resources/donorData.csv")
 
-	# populate adjacency matrix connecting agencies to donors if feasible
-	adjMatrix = np.zeros((len(donors), len(agencies)))
+    # generate drivers for the new formulation
+    drivers = generateDrivers(5)  # create 5 drivers with random locations
 
-	# set array of donor names
-	donorLabels = []
-	for i in range(len(donors)):
-		donorLabels.append(donors[i].name)
-	
-	# set array of agency names
-	agencyLabels = []
-	for i in range(len(agencies)):
-		agencyLabels.append(agencies[i].name)
+    # populate adjacency matrix connecting agencies to donors if feasible
+    adjMatrix = np.zeros((len(donors), len(agencies)))
 
-	# populate adjacency matrix with edges
-	for i in range(len(donors)):
-		for j in range(len(agencies)):
+    # set array of donor names
+    donorLabels = []
+    for i in range(len(donors)):
+        donorLabels.append(donors[i].name)
 
-			# if donor is FBWM partner and agency is not, no connection
-			if donors[i].fbwmPartner == True and agencies[j].fbwmPartner == "NFB":
-				continue
+    # set array of agency names
+    agencyLabels = []
+    for i in range(len(agencies)):
+        agencyLabels.append(agencies[i].name)
 
-			# TODO populate the adjacency matrix based the lat/long of donors and agencies
-			# ! Still need lat/long data for donors
+    # populate adjacency matrix with edges
+    for i in range(len(donors)):
+        for j in range(len(agencies)):
 
-			# TEMPORARY randomly generate edges
-			elif random.random() < 1.00:  # 7% chance of a connection
-				adjMatrix[i][j] = 1
+            # if donor is FBWM partner and agency is not, no connection
+            if donors[i].fbwmPartner == True and agencies[j].fbwmPartner == "NFB":
+                continue
 
-	
-	print(f"\nAdjacency Matrix Shape: {adjMatrix.shape}")
-	print(f"Possible connections: {int(np.sum(adjMatrix))}")
+            # TODO populate the adjacency matrix based the lat/long of donors and agencies
+            # ! Still need lat/long data for donors
 
-	# # visualize the network
-	# plotBipartiteGraph(adjMatrix, donorLabels, agencyLabels)
+            # TEMPORARY randomly generate edges
+            elif random.random() < 1.00:  # 7% chance of a connection
+                adjMatrix[i][j] = 1
 
-	# randomly assign packages to donors with new food type support
-	randItemGen(donors, minItems=3, maxItems=25, minWeight=10, maxWeight=50)
+    print(f"\nAdjacency Matrix Shape: {adjMatrix.shape}")
+    print(f"Possible connections: {int(np.sum(adjMatrix))}")
 
+    # # visualize the network
+    # plotBipartiteGraph(adjMatrix, donorLabels, agencyLabels)
 
-	# run new ILP egalitarian with drivers and food types
-	allocation, agencyUtilities = egalitarianILP(donors, agencies, adjMatrix, drivers)
-	printAllocationSummary(allocation, agencies, donors, agencyUtilities)
-	
-	# visualize
-	print("\nDisplaying network comparison...")
-	plotComparisonGraphs(adjMatrix, allocation, donors, agencies, donorLabels, agencyLabels)
+    # randomly assign packages to donors with new food type support
+    randItemGen(donors, minItems=3, maxItems=25, minWeight=10, maxWeight=50)
 
+    # run new ILP egalitarian with drivers and food types
+    allocation, agencyUtilities = egalitarianILP(donors, agencies, adjMatrix, drivers)
+    printAllocationSummary(allocation, agencies, donors, agencyUtilities)
 
-	return 0
+    # visualize
+    print("\nDisplaying network comparison...")
+    plotComparisonGraphs(
+        adjMatrix, allocation, donors, agencies, donorLabels, agencyLabels
+    )
+
+    return 0
+
 
 if __name__ == "__main__":
-	main()
+    main()
