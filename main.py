@@ -23,6 +23,8 @@ def main():
     agencies = readAgencyData("resources/agencyData_small.csv")
     # read in donor data
     donors = readDonorData("resources/donorData_small.csv")
+    # generate time steps
+    timesteps = range(10)
 
     # generate drivers for the new formulation
     drivers = generateDrivers(5)  # create 5 drivers with random locations
@@ -62,12 +64,21 @@ def main():
     # plotBipartiteGraph(adjMatrix, donorLabels, agencyLabels)
 
     # randomly assign packages to donors with new food type support
-    randItemGen(donors, minItems=3, maxItems=25, minWeight=10, maxWeight=50, seed=seed)
-    exit()
+    items = randItemGen(
+        donors,
+        timesteps,
+        minItems=3,
+        maxItems=25,
+        minWeight=10,
+        maxWeight=50,
+        seed=seed,
+    )
+
     # run new ILP egalitarian with drivers and food types
     allocation, agencyUtilities = egalitarianILP(
-        donors, agencies, adjMatrix, drivers, use_gurobi=False
+        donors, agencies, items, timesteps, adjMatrix, drivers, use_gurobi=False
     )
+    exit()
     printAllocationSummary(allocation, agencies, donors, agencyUtilities)
 
     # visualize
