@@ -78,8 +78,7 @@ def main():
     allocation, agencyUtilities = egalitarianILP(
         donors, agencies, items, timesteps, adjMatrix, drivers, use_gurobi=False
     )
-    exit()
-    printAllocationSummary(allocation, agencies, donors, agencyUtilities)
+    # printAllocationSummary(allocation, items, agencies, donors, agencyUtilities)
 
     # visualize
     print("\nDisplaying network comparison...")

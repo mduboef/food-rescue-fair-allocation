@@ -1,6 +1,7 @@
 class Item:
-    def __init__(self, donor, weight, foodType):
+    def __init__(self, donor, timestep, weight, foodType):
         self.donor = donor  # object from the class donor, corresponding to the donor that donated the item
+        self.timestep = timestep
         self.weight = weight  # in pounds
         self.foodType = foodType  # list of applicable food categories (legacy)
         self.availabilityTime = None
