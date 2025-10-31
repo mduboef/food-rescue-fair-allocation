@@ -22,7 +22,7 @@ def main():
     # read in agency data
     agencies = readAgencyData("resources/agencyData.csv")
     # read in donor data
-    donors = readDonorData("resources/donorData_small.csv")
+    donors = readDonorData("resources/donorData.csv")
     # generate time steps
     timesteps = range(10)
 
