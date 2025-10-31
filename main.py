@@ -19,9 +19,9 @@ random.seed(seed)
 def main():
 
     # read in agency data
-    agencies = readAgencyData("resources/agencyData_small.csv")
+    agencies = readAgencyData("resources/agencyData.csv")
     # read in donor data
-    donors = readDonorData("resources/donorData_small.csv")
+    donors = readDonorData("resources/donorData.csv")
 
     # generate drivers for the new formulation
     drivers = generateDrivers(5)  # create 5 drivers with random locations
