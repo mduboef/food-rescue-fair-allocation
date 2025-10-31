@@ -5,7 +5,8 @@ import random
 import numpy as np
 from colorama import Fore
 
-from donor import Item, Donor, readDonorData
+from item import Item
+from donor import readDonorData
 from agency import Agency, Preference, readAgencyData
 from driver import Driver, generateDrivers
 from visuals import plotBipartiteGraph, plotAllocationGraph, plotComparisonGraphs
@@ -22,6 +23,8 @@ def main():
     agencies = readAgencyData("resources/agencyData.csv")
     # read in donor data
     donors = readDonorData("resources/donorData.csv")
+    # generate time steps
+    timesteps = range(10)
 
     # generate drivers for the new formulation
     drivers = generateDrivers(5)  # create 5 drivers with random locations
@@ -61,13 +64,21 @@ def main():
     # plotBipartiteGraph(adjMatrix, donorLabels, agencyLabels)
 
     # randomly assign packages to donors with new food type support
-    randItemGen(donors, minItems=3, maxItems=25, minWeight=10, maxWeight=50, seed=seed)
+    items = randItemGen(
+        donors,
+        timesteps,
+        minItems=3,
+        maxItems=25,
+        minWeight=10,
+        maxWeight=50,
+        seed=seed,
+    )
 
     # run new ILP egalitarian with drivers and food types
     allocation, agencyUtilities = egalitarianILP(
-        donors, agencies, adjMatrix, drivers, use_gurobi=False
+        donors, agencies, items, timesteps, adjMatrix, drivers, use_gurobi=False
     )
-    printAllocationSummary(allocation, agencies, donors, agencyUtilities)
+    # printAllocationSummary(allocation, items, agencies, donors, agencyUtilities)
 
     # visualize
     print("\nDisplaying network comparison...")
