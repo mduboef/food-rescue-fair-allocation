@@ -218,10 +218,10 @@ def egalitarianILP(
     agencyUtilities = [0.0] * len(agencies)
 
     # extract allocation results
-    for (agencyIdx, donorIdx, itemIdx), var in x.items():
+    for (agencyIdx, itemIdx), var in x.items():
         if var.varValue and var.varValue > 0.5:  # check if allocated
-            allocation[agencyIdx].append((donorIdx, itemIdx))
-            item = donors[donorIdx].items[itemIdx]
+            item=items[itemIdx]
+            allocation[agencyIdx].append((item.donor, itemIdx))
             agencyUtilities[agencyIdx] += item.weight
 
     return allocation, agencyUtilities
@@ -341,12 +341,13 @@ def randItemGen(
             for foodType in selectedFoodTypes:
                 item.foodTypeQuantities[foodType] = weightPerType
             items.append(item)
-    return items
-
     print(
         f"Randomly generated {totalItems} items totaling {totalWeight}lbs across {len(donors)} donors"
     )
     print(f"Food types assigned: {FOOD_TYPES}")
+    
+    return items
+
 
 
 # prints a summary of the allocation results
