@@ -20,7 +20,7 @@ random.seed(seed)
 def main():
 
     # read in agency data
-    agencies = readAgencyData("resources/agencyData_small.csv")
+    agencies = readAgencyData("resources/agencyData.csv")
     # read in donor data
     donors = readDonorData("resources/donorData_small.csv")
     # generate time steps
