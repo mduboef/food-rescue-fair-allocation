@@ -4,7 +4,7 @@ from collections import defaultdict
 import pulp as plp
 import statistics
 
-from donor import Item, Donor
+from item import Item
 
 # define the seven food types as specified
 FOOD_TYPES = [
@@ -18,8 +18,23 @@ FOOD_TYPES = [
 ]
 
 
+# creates the qgf matrix: quantity of food type f in item g
+def createFoodTypeMatrix(items):
+    qgf = {}
+
+    for itemIdx, item in enumerate(items):
+        for foodType in FOOD_TYPES:
+            # get quantity of this food type in this item
+            quantity = item.foodTypeQuantities.get(foodType, 0.0)
+            qgf[(itemIdx, foodType)] = quantity
+
+    return qgf
+
+
 # ILP-based allocation with new egalitarian formulation including drivers and food types
-def egalitarianILP(donors, agencies, adjMatrix, drivers=None, use_gurobi=False):
+def egalitarianILP(
+    donors, agencies, items, timeSteps, adjMatrix, drivers=None, use_gurobi=False
+):
 
     print(f"\n{'='*60}")
     print("STARTING NEW ILP SOLVER - EGALITARIAN + EGALITARIAN ACROSS FOOD TYPES")
@@ -35,15 +50,12 @@ def egalitarianILP(donors, agencies, adjMatrix, drivers=None, use_gurobi=False):
     agencyWeights = calculateAgencyWeights(agencies)
 
     # create qgf matrix: quantity of food type f in item g
-    qgfMatrix = createFoodTypeMatrix(donors)
+    qgfMatrix = createFoodTypeMatrix(items)
 
     # create 3D feasibility matrix showing which drivers can make which trips
     feasibilityMatrix = createDriverFeasibilityMatrix(
         donors, agencies, drivers, adjMatrix
     )
-
-    # time step limit
-    timeSteps = [0, 1, 2, 3, 4, 6, 7, 8, 9]
 
     # create the optimization model
     model = plp.LpProblem("Food_Allocation_New_Egalitarian", plp.LpMaximize)
@@ -52,12 +64,9 @@ def egalitarianILP(donors, agencies, adjMatrix, drivers=None, use_gurobi=False):
     # xi_g: binary indicating if item g is assigned to agency i
     x = {}
     for agencyIdx in range(len(agencies)):
-        for donorIdx, donor in enumerate(donors):
-            for itemIdx in range(len(donor.items)):
-                varName = f"x_a{agencyIdx}_d{donorIdx}_i{itemIdx}"
-                x[(agencyIdx, donorIdx, itemIdx)] = plp.LpVariable(
-                    varName, cat="Binary"
-                )
+        for itemIdx in range(len(items)):
+            varName = f"x_i{agencyIdx}_g{itemIdx}"
+            x[(agencyIdx, itemIdx)] = plp.LpVariable(varName, cat="Binary")
 
     # yt_i_d_k: binary indicating trip from donor d to agency i by driver k at time t
     y = {}
@@ -65,7 +74,7 @@ def egalitarianILP(donors, agencies, adjMatrix, drivers=None, use_gurobi=False):
         for agencyIdx in range(len(agencies)):
             for donorIdx in range(len(donors)):
                 for driverIdx in range(len(drivers)):
-                    varName = f"y_t{t}_a{agencyIdx}_d{donorIdx}_k{driverIdx}"
+                    varName = f"y_t{t}_i{agencyIdx}_d{donorIdx}_k{driverIdx}"
                     y[(t, agencyIdx, donorIdx, driverIdx)] = plp.LpVariable(
                         varName, cat="Binary"
                     )
@@ -92,9 +101,8 @@ def egalitarianILP(donors, agencies, adjMatrix, drivers=None, use_gurobi=False):
     # constraint 1: minimum food per person served constraint
     for agencyIdx in range(len(agencies)):
         totalFoodReceived = plp.lpSum(
-            qgfMatrix[(donorIdx, itemIdx, foodType)] * x[(agencyIdx, donorIdx, itemIdx)]
-            for donorIdx, donor in enumerate(donors)
-            for itemIdx in range(len(donor.items))
+            qgfMatrix[(itemIdx, foodType)] * x[(agencyIdx, itemIdx)]
+            for itemIdx in range(len(items))
             for foodType in FOOD_TYPES
         )
 
@@ -107,10 +115,8 @@ def egalitarianILP(donors, agencies, adjMatrix, drivers=None, use_gurobi=False):
     for agencyIdx in range(len(agencies)):
         for foodType in FOOD_TYPES:
             foodTypeReceived = plp.lpSum(
-                qgfMatrix[(donorIdx, itemIdx, foodType)]
-                * x[(agencyIdx, donorIdx, itemIdx)]
-                for donorIdx, donor in enumerate(donors)
-                for itemIdx in range(len(donor.items))
+                qgfMatrix[(itemIdx, foodType)] * x[(agencyIdx, itemIdx)]
+                for itemIdx in range(len(items))
             )
 
             model += (
@@ -119,16 +125,12 @@ def egalitarianILP(donors, agencies, adjMatrix, drivers=None, use_gurobi=False):
             )
 
     # constraint 3: each item allocated at most once
-    for donorIdx, donor in enumerate(donors):
-        for itemIdx in range(len(donor.items)):
-            model += (
-                plp.lpSum(
-                    x[(agencyIdx, donorIdx, itemIdx)]
-                    for agencyIdx in range(len(agencies))
-                )
-                <= 1,
-                f"ItemOnce_d{donorIdx}_i{itemIdx}",
-            )
+    for itemIdx in range(len(items)):
+        model += (
+            plp.lpSum(x[(agencyIdx, itemIdx)] for agencyIdx in range(len(agencies)))
+            <= 1,
+            f"ItemOnce_i{itemIdx}",
+        )
 
     # constraint 4: each driver does at most one trip per time step
     for t in timeSteps:
@@ -173,19 +175,17 @@ def egalitarianILP(donors, agencies, adjMatrix, drivers=None, use_gurobi=False):
 
     # constraint 7: items can only be assigned if corresponding trip exists
     for agencyIdx in range(len(agencies)):
-        for donorIdx, donor in enumerate(donors):
-            for itemIdx in range(len(donor.items)):
-                # item can only be assigned if there's a trip from donor to agency
-                # ? Does the time step matter here?
-                model += (
-                    x[(agencyIdx, donorIdx, itemIdx)]
-                    <= plp.lpSum(
-                        y[(t, agencyIdx, donorIdx, driverIdx)]
-                        for t in timeSteps
-                        for driverIdx in range(len(drivers))
-                    ),
-                    f"ItemRequiresTrip_a{agencyIdx}_d{donorIdx}_i{itemIdx}",
-                )
+        for itemIdx, item in enumerate(items):
+            # item can only be assigned if there's a trip from donor to agency
+            # ? Does the time step matter here?
+            model += (
+                x[(agencyIdx, itemIdx)]
+                <= plp.lpSum(
+                    y[(item.timestep, agencyIdx, item.donor, driverIdx)]
+                    for driverIdx in range(len(drivers))
+                ),
+                f"ItemRequiresTrip_a{agencyIdx}_d{donorIdx}_i{itemIdx}",
+            )
 
     # solve the ILP
     print(f"\nSolving new ILP optimization problem...")
@@ -218,10 +218,10 @@ def egalitarianILP(donors, agencies, adjMatrix, drivers=None, use_gurobi=False):
     agencyUtilities = [0.0] * len(agencies)
 
     # extract allocation results
-    for (agencyIdx, donorIdx, itemIdx), var in x.items():
+    for (agencyIdx, itemIdx), var in x.items():
         if var.varValue and var.varValue > 0.5:  # check if allocated
-            allocation[agencyIdx].append((donorIdx, itemIdx))
-            item = donors[donorIdx].items[itemIdx]
+            item = items[itemIdx]
+            allocation[agencyIdx].append((item.donor, itemIdx))
             agencyUtilities[agencyIdx] += item.weight
 
     return allocation, agencyUtilities
@@ -286,20 +286,6 @@ def calculateAgencyWeights(agencies):
     return weights
 
 
-# creates the qgf matrix: quantity of food type f in item g
-def createFoodTypeMatrix(donors):
-    qgf = {}
-
-    for donorIdx, donor in enumerate(donors):
-        for itemIdx, item in enumerate(donor.items):
-            for foodType in FOOD_TYPES:
-                # get quantity of this food type in this item
-                quantity = item.foodTypeQuantities.get(foodType, 0.0)
-                qgf[(donorIdx, itemIdx, foodType)] = quantity
-
-    return qgf
-
-
 # creates for driver-donor-agency combinations
 def createDriverFeasibilityMatrix(donors, agencies, drivers, adjMatrix):
     # 3D feasibility matrix: feasible[agency][donor][driver]
@@ -324,18 +310,26 @@ def createDriverFeasibilityMatrix(donors, agencies, drivers, adjMatrix):
 
 
 # randomly assigns food types to items (1-3 types per item)
-def randItemGen(donors, minItems=1, maxItems=5, minWeight=5, maxWeight=20, seed=None):
+def randItemGen(
+    donors, timesteps, minItems=1, maxItems=5, minWeight=5, maxWeight=20, seed=None
+):
 
     if seed is not None:
         random.seed(seed)
 
-    for donor in donors:
+    items = []
+    totalItems = 0
+    totalWeight = 0
+
+    for donorIdx in range(len(donors)):
         numItems = random.randint(minItems, maxItems)
-        donor.items = []  # clear existing items
+        totalItems += numItems
 
         for i in range(numItems):
             weight = random.randint(minWeight, maxWeight)
-            item = Item(None, weight)  # generic food type
+            totalWeight += weight
+            timestep = random.choice(list(timesteps))
+            item = Item(donorIdx, timestep, weight, foodType=None)  # generic food type
 
             # randomly assign 1-3 food types
             numFoodTypes = random.randint(1, 3)
@@ -346,16 +340,13 @@ def randItemGen(donors, minItems=1, maxItems=5, minWeight=5, maxWeight=20, seed=
 
             for foodType in selectedFoodTypes:
                 item.foodTypeQuantities[foodType] = weightPerType
-
-            donor.items.append(item)
-
-    totalItems = sum(len(donor.items) for donor in donors)
-    totalWeight = sum(sum(item.weight for item in donor.items) for donor in donors)
-
+            items.append(item)
     print(
         f"Randomly generated {totalItems} items totaling {totalWeight}lbs across {len(donors)} donors"
     )
     print(f"Food types assigned: {FOOD_TYPES}")
+
+    return items
 
 
 # prints a summary of the allocation results
