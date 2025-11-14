@@ -79,6 +79,7 @@ def main():
         donors, agencies, items, timesteps, adjMatrix, drivers, use_gurobi=False
     )
     # printAllocationSummary(allocation, items, agencies, donors, agencyUtilities)
+    printAllocationSummary(allocation, agencies, items, donors, agencyUtilities)
 
     # visualize
     print("\nDisplaying network comparison...")

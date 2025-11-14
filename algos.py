@@ -349,8 +349,9 @@ def randItemGen(
     return items
 
 
+
 # prints a summary of the allocation results
-def printAllocationSummary(allocation, agencies, donors, agencyUtilities):
+def printAllocationSummary(allocation, agencies, items, donors, agencyUtilities):
     print("\n" + "=" * 50)
     print("ALLOCATION SUMMARY")
     print("=" * 50)
@@ -378,8 +379,8 @@ def printAllocationSummary(allocation, agencies, donors, agencyUtilities):
             donorToItemCount = {}
 
             for donorIdx, itemIdx in allocatedItems:
-                item = donors[donorIdx].items[itemIdx]
-                donorName = donors[donorIdx].name
+                item = items[itemIdx]  # get item from items list using itemIdx
+                donorName = donors[donorIdx].name  # get donor name using donorIdx
 
                 if donorName not in donorToWeight:
                     donorToWeight[donorName] = 0
@@ -402,7 +403,6 @@ def printAllocationSummary(allocation, agencies, donors, agencyUtilities):
 
     print(f"Total agencies receiving food: {allocatedAgencies}/{len(agencies)}")
     print(f"Total food allocated: {totalAllocated:.1f}lbs")
-    print(f"Total unique donor-to-agency trips: {totalTrips}")
 
     # calculate fairness metrics
     utilitiesPerPerson = []
