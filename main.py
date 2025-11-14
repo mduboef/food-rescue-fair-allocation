@@ -21,8 +21,10 @@ def main():
 
     # read in agency data
     agencies = readAgencyData("resources/agencyData.csv")
+    
     # read in donor data
     donors = readDonorData("resources/donorData.csv")
+
     # generate time steps
     timesteps = range(10)
 
@@ -76,7 +78,7 @@ def main():
 
     # run new ILP egalitarian with drivers and food types
     allocation, agencyUtilities = egalitarianILP(
-        donors, agencies, items, timesteps, adjMatrix, drivers, use_gurobi=False
+        donors, agencies, items, timesteps, adjMatrix, drivers, use_gurobi=False, uswWeight=0.005
     )
     # printAllocationSummary(allocation, items, agencies, donors, agencyUtilities)
     printAllocationSummary(allocation, agencies, items, donors, agencyUtilities)

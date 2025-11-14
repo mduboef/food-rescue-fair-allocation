@@ -33,7 +33,7 @@ def createFoodTypeMatrix(items):
 
 # ILP-based allocation with new egalitarian formulation including drivers and food types
 def egalitarianILP(
-    donors, agencies, items, timeSteps, adjMatrix, drivers=None, use_gurobi=False
+    donors, agencies, items, timeSteps, adjMatrix, drivers=None, use_gurobi=False, uswWeight=0.01
 ):
 
     print(f"\n{'='*60}")
@@ -89,14 +89,30 @@ def egalitarianILP(
 
     print(f"Created {len(x)} allocation variables and {len(y)} trip variables")
 
-    # objective: maximize minimum weighted utility (with food type weighting)
+    # objective: maximize weighted USW + minimum weighted utility (with food type weighting)
+    # uswWeight controls the importance of USW relative to egalitarian terms
     # for now, give equal weight (α=1) to all food types
     alphaWeights = {foodType: 1.0 for foodType in FOOD_TYPES}
 
-    model += (
-        r + plp.lpSum(alphaWeights[foodType] * rf[foodType] for foodType in FOOD_TYPES),
-        "Maximize_Min_Weighted_Utility",
+    # calculate utilitarian social welfare (USW): sum of weighted utilities across all agencies
+    usw = plp.lpSum(
+        plp.lpSum(
+            qgfMatrix[(itemIdx, foodType)] * x[(agencyIdx, itemIdx)]
+            for itemIdx in range(len(items))
+            for foodType in FOOD_TYPES
+        ) / agencyWeights[agencyIdx]
+        for agencyIdx in range(len(agencies))
     )
+
+    print(f"USW weight parameter: {uswWeight}")
+
+    model += (
+        uswWeight * usw + r + plp.lpSum(alphaWeights[foodType] * rf[foodType] for foodType in FOOD_TYPES),
+        "Maximize_Weighted_USW_Plus_Min_Weighted_Utility",
+    )
+
+    # TODO constraint 0: maximize social welfare (total food allocated)
+    
 
     # constraint 1: minimum food per person served constraint
     for agencyIdx in range(len(agencies)):
@@ -394,7 +410,7 @@ def printAllocationSummary(allocation, agencies, items, donors, agencyUtilities)
             for donorName in sorted(donorToWeight.keys()):
                 totalWeight = donorToWeight[donorName]
                 itemCount = donorToItemCount[donorName]
-                print(f"    • {donorName}: {totalWeight:.1f}lbs ({itemCount} items)")
+                print(f"    - {donorName}: {totalWeight:.1f}lbs ({itemCount} items)")
                 totalTrips += 1
 
             print()  # blank line between agencies
